@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PMSS - Construction Cost Management</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="header">
+    <div class="brand">
+      <h1>PMSS</h1>
+      <span class="tagline">Construction Cost Management System</span>
+    </div>
+    <nav class="nav">
+      <button class="nav-btn active" data-view="dashboard">Dashboard</button>
+      <button class="nav-btn" data-view="cbs">CBS</button>
+      <button class="nav-btn" data-view="evm">EVM</button>
+      <button class="nav-btn" data-view="change-orders">Change Orders</button>
+      <button class="nav-btn" data-view="risks">Risks</button>
+      <button class="nav-btn" data-view="cost-items">Cost Detail</button>
+      <button class="nav-btn" data-view="subcontractors">Subcontractors</button>
+      <button class="nav-btn" data-view="vendors">Vendor Bids</button>
+      <button class="nav-btn" data-view="cashflow">Cash Flow</button>
+      <button class="nav-btn" data-view="cost-codes">Cost Codes</button>
+    </nav>
+    <div class="header-actions">
+      <button class="btn-secondary" id="btn-add-project" title="New Project">+ Project</button>
+      <select id="projectSelect" class="project-select"></select>
+    </div>
+  </header>
+
+  <main class="main">
+    <section id="view-dashboard" class="view active">
+      <div id="dashboard-empty" class="dashboard-empty" style="display:none">
+        <div class="empty-card">
+          <h3>No Data Yet</h3>
+          <p>Load sample project data to explore the dashboard, or create your own project.</p>
+          <div class="empty-actions">
+            <button type="button" class="btn-primary" id="btn-load-sample">Load Sample Data</button>
+            <span class="empty-or">or</span>
+            <button type="button" class="btn-secondary" id="btn-create-first">Create New Project</button>
+          </div>
+          <p id="dashboard-server-msg" class="text-muted" style="display:none;margin-top:1rem"></p>
+        </div>
+      </div>
+      <div id="dashboard-content" class="dashboard">
+        <div class="kpi-grid">
+          <div class="kpi-card">
+            <span class="kpi-label">Total Budget</span>
+            <span class="kpi-value" id="dash-budget">—</span>
+          </div>
+          <div class="kpi-card">
+            <span class="kpi-label">Actual Spend</span>
+            <span class="kpi-value" id="dash-actual">—</span>
+          </div>
+          <div class="kpi-card">
+            <span class="kpi-label">EAC</span>
+            <span class="kpi-value" id="dash-eac">—</span>
+          </div>
+          <div class="kpi-card">
+            <span class="kpi-label">% Complete</span>
+            <span class="kpi-value" id="dash-pct">—</span>
+          </div>
+          <div class="kpi-card">
+            <span class="kpi-label">CPI</span>
+            <span class="kpi-value" id="dash-cpi">—</span>
+          </div>
+          <div class="kpi-card">
+            <span class="kpi-label">SPI</span>
+            <span class="kpi-value" id="dash-spi">—</span>
+          </div>
+        </div>
+        <div class="dashboard-charts">
+          <div class="chart-card">
+            <h3>Budget Allocation</h3>
+            <div id="chart-budget" class="chart-placeholder"></div>
+          </div>
+          <div class="chart-card">
+            <h3>Change Orders Impact</h3>
+            <div id="chart-co" class="chart-placeholder"></div>
+          </div>
+          <div class="chart-card">
+            <h3>AI Project Assistant</h3>
+            <div class="ai-assist">
+              <textarea id="ai-question" rows="3" placeholder="Ask a question about this project (e.g. Why is EAC increasing?)"></textarea>
+              <div class="form-actions" style="margin-top:0.75rem">
+                <button type="button" class="btn-secondary" id="btn-ai-summary">Generate Executive Summary</button>
+                <button type="button" class="btn-primary" id="btn-ai-ask">Ask AI</button>
+              </div>
+              <div id="ai-answer" class="ai-answer text-muted"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="view-cbs" class="view">
+      <div class="module-header">
+        <h2>Cost Breakdown Structure</h2>
+        <a href="#" class="btn-primary" id="export-cbs">Export to Excel</a>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table" id="cbs-table">
+          <thead>
+            <tr>
+              <th>WBS</th>
+              <th>Name</th>
+              <th>Original</th>
+              <th>Changes</th>
+              <th>Current</th>
+              <th>Actual</th>
+              <th>ETC</th>
+              <th>EAC</th>
+              <th>Variance</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="view-evm" class="view">
+      <div class="module-header">
+        <h2>Earned Value Management</h2>
+        <div>
+          <a href="#" class="btn-secondary" id="export-evm">Export</a>
+          <button class="btn-primary" id="btn-add-evm">+ Add EVM Entry</button>
+        </div>
+      </div>
+      <div id="evm-cards" class="evm-grid"></div>
+      <div class="table-wrap">
+        <table class="data-table" id="evm-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>BAC</th>
+              <th>PV</th>
+              <th>EV</th>
+              <th>AC</th>
+              <th>SV</th>
+              <th>CV</th>
+              <th>SPI</th>
+              <th>CPI</th>
+              <th>EAC</th>
+              <th>VAC</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="view-change-orders" class="view">
+      <div class="module-header">
+        <h2>Change Order Log</h2>
+        <div>
+          <a href="#" class="btn-secondary" id="export-co">Export</a>
+          <button class="btn-primary" id="btn-add-co">+ Add Change Order</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table" id="co-table">
+          <thead>
+            <tr>
+              <th>CO #</th>
+              <th>Description</th>
+              <th>Status</th>
+              <th>Cost Impact</th>
+              <th>Schedule</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="view-risks" class="view">
+      <div class="module-header">
+        <h2>Contingency & Risk Register</h2>
+        <div>
+          <a href="#" class="btn-secondary" id="export-risk">Export</a>
+          <button class="btn-primary" id="btn-add-risk">+ Add Risk</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table" id="risk-table">
+          <thead>
+            <tr>
+              <th>Title</th>
+              <th>P×I</th>
+              <th>Allocated</th>
+              <th>Used</th>
+              <th>Remaining</th>
+              <th>Owner</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="view-cost-items" class="view">
+      <div class="module-header">
+        <h2>Labor | Materials | Equipment</h2>
+        <div>
+          <a href="#" class="btn-secondary" id="export-cost-items">Export</a>
+          <button class="btn-primary" id="btn-add-cost-item">+ Add Cost Item</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table" id="cost-items-table">
+          <thead>
+            <tr>
+              <th>Category</th>
+              <th>Description</th>
+              <th>Budget Hrs</th>
+              <th>Budget Rate</th>
+              <th>Budget $</th>
+              <th>Actual Hrs</th>
+              <th>Actual $</th>
+              <th>Variance</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="view-subcontractors" class="view">
+      <div class="module-header">
+        <h2>Subcontractors</h2>
+        <div>
+          <a href="#" class="btn-secondary" id="export-subcontractors">Export</a>
+          <button class="btn-primary" id="btn-add-sub">+ Add Subcontractor</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table" id="sub-table">
+          <thead>
+            <tr>
+              <th>Vendor</th>
+              <th>Original Contract</th>
+              <th>Change Orders</th>
+              <th>Revised Contract</th>
+              <th>Invoiced</th>
+              <th>Retention</th>
+              <th>% Complete</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="view-vendors" class="view">
+      <div class="module-header">
+        <h2>Vendor Bid Comparison</h2>
+        <div>
+          <button class="btn-secondary" id="btn-add-vendor">+ Vendor</button>
+          <button class="btn-primary" id="btn-add-package">+ Add Package</button>
+        </div>
+      </div>
+      <div id="vendor-packages"></div>
+    </section>
+
+    <section id="view-cost-codes" class="view">
+      <div class="module-header">
+        <h2>Cost Code Reference (CSI MasterFormat)</h2>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table" id="cost-codes-table">
+          <thead>
+            <tr>
+              <th>Code</th>
+              <th>Name</th>
+              <th>Category</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="view-cashflow" class="view">
+      <div class="module-header">
+        <h2>Cash Flow Forecast</h2>
+        <div>
+          <a href="#" class="btn-secondary" id="export-cf">Export</a>
+          <button class="btn-primary" id="btn-add-cf">+ Add Period</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table" id="cf-table">
+          <thead>
+            <tr>
+              <th>Period</th>
+              <th>Planned</th>
+              <th>Actual</th>
+              <th>Variance</th>
+              <th>Cum. Planned</th>
+              <th>Cum. Actual</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <!-- Modal: Add Project -->
+  <div id="modal-project" class="modal">
+    <div class="modal-content">
+      <h3>New Project</h3>
+      <form id="form-project">
+        <label>Project Name</label>
+        <input type="text" name="name" required placeholder="Project name">
+        <label>Description</label>
+        <textarea name="description" rows="2"></textarea>
+        <label>Start Date</label>
+        <input type="date" name="start_date">
+        <label>End Date</label>
+        <input type="date" name="end_date">
+        <label>Currency</label>
+        <select name="currency"><option value="USD">USD</option><option value="EUR">EUR</option></select>
+        <div class="form-actions">
+          <button type="button" class="btn-secondary" data-close="modal-project">Cancel</button>
+          <button type="submit" class="btn-primary">Create</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Add EVM Entry -->
+  <div id="modal-evm" class="modal">
+    <div class="modal-content">
+      <h3>Add EVM Entry</h3>
+      <form id="form-evm">
+        <input type="hidden" id="evm-project-id" name="project_id">
+        <label>Report Date</label>
+        <input type="date" name="report_date" required>
+        <label>BAC ($)</label>
+        <input type="number" name="bac" required step="0.01">
+        <label>PV ($)</label>
+        <input type="number" name="pv" value="0" step="0.01">
+        <label>EV ($)</label>
+        <input type="number" name="ev" value="0" step="0.01">
+        <label>AC ($)</label>
+        <input type="number" name="ac" value="0" step="0.01">
+        <div class="form-preview" id="evm-preview"></div>
+        <div class="form-actions">
+          <button type="button" class="btn-secondary" data-close="modal-evm">Cancel</button>
+          <button type="submit" class="btn-primary">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Add Cash Flow Period -->
+  <div id="modal-cf" class="modal">
+    <div class="modal-content">
+      <h3>Add / Update Period</h3>
+      <form id="form-cf">
+        <input type="hidden" id="cf-project-id" name="project_id">
+        <label>Period (YYYY-MM)</label>
+        <input type="month" name="period_date" required>
+        <label>Planned Spend ($)</label>
+        <input type="number" name="planned_spend" value="0" step="0.01">
+        <label>Actual Spend ($)</label>
+        <input type="number" name="actual_spend" value="0" step="0.01">
+        <div class="form-preview" id="cf-preview"></div>
+        <div class="form-actions">
+          <button type="button" class="btn-secondary" data-close="modal-cf">Cancel</button>
+          <button type="submit" class="btn-primary">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Add Cost Item -->
+  <div id="modal-cost-item" class="modal">
+    <div class="modal-content">
+      <h3>Add Cost Item</h3>
+      <form id="form-cost-item">
+        <input type="hidden" id="ci-project-id" name="project_id">
+        <label>Category</label>
+        <select name="category" required>
+          <option value="Labor">Labor</option>
+          <option value="Materials">Materials</option>
+          <option value="Equipment">Equipment</option>
+        </select>
+        <label>Description</label>
+        <input type="text" name="description" required>
+        <label>Budget Hours</label>
+        <input type="number" name="budget_hours" step="0.01">
+        <label>Budget Rate ($)</label>
+        <input type="number" name="budget_rate" step="0.01">
+        <label>Budget Amount ($)</label>
+        <input type="number" name="budget_amount" step="0.01">
+        <label>Actual Hours</label>
+        <input type="number" name="actual_hours" value="0" step="0.01">
+        <label>Actual Amount ($)</label>
+        <input type="number" name="actual_amount" value="0" step="0.01">
+        <div class="form-preview" id="ci-preview"></div>
+        <div class="form-actions">
+          <button type="button" class="btn-secondary" data-close="modal-cost-item">Cancel</button>
+          <button type="submit" class="btn-primary">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Add Subcontractor -->
+  <div id="modal-sub" class="modal">
+    <div class="modal-content">
+      <h3>Add Subcontractor</h3>
+      <form id="form-sub">
+        <input type="hidden" id="sub-project-id" name="project_id">
+        <label>Vendor</label>
+        <select name="vendor_id" required id="sub-vendor-select"></select>
+        <label>Original Contract ($)</label>
+        <input type="number" name="original_contract" required step="0.01">
+        <label>Change Orders Total ($)</label>
+        <input type="number" name="change_orders_total" value="0" step="0.01">
+        <div class="form-preview" id="sub-preview"></div>
+        <div class="form-actions">
+          <button type="button" class="btn-secondary" data-close="modal-sub">Cancel</button>
+          <button type="submit" class="btn-primary">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Add Vendor -->
+  <div id="modal-vendor" class="modal">
+    <div class="modal-content">
+      <h3>Add Vendor</h3>
+      <form id="form-vendor">
+        <label>Vendor Name</label>
+        <input type="text" name="name" required>
+        <label>Contact Person</label>
+        <input type="text" name="contact_person">
+        <label>Email</label>
+        <input type="email" name="email">
+        <label>Phone</label>
+        <input type="text" name="phone">
+        <label>Payment Terms</label>
+        <input type="text" name="payment_terms" placeholder="e.g. Net 30">
+        <div class="form-actions">
+          <button type="button" class="btn-secondary" data-close="modal-vendor">Cancel</button>
+          <button type="submit" class="btn-primary">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Add Procurement Package -->
+  <div id="modal-package" class="modal">
+    <div class="modal-content">
+      <h3>Add Procurement Package</h3>
+      <form id="form-package">
+        <input type="hidden" id="pkg-project-id" name="project_id">
+        <label>Package Name</label>
+        <input type="text" name="package_name" required>
+        <label>Description</label>
+        <textarea name="description" rows="2"></textarea>
+        <label>Lead Time (days)</label>
+        <input type="number" name="lead_time_days">
+        <div class="form-actions">
+          <button type="button" class="btn-secondary" data-close="modal-package">Cancel</button>
+          <button type="submit" class="btn-primary">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Add Change Order -->
+  <div id="modal-co" class="modal">
+    <div class="modal-content">
+      <h3>Add Change Order</h3>
+      <form id="form-co">
+        <input type="hidden" id="co-project-id" name="project_id">
+        <label>CO Number</label>
+        <input type="text" name="co_number" required placeholder="CO-00X">
+        <label>Description</label>
+        <textarea name="description" required rows="3"></textarea>
+        <label>Cost Impact ($)</label>
+        <input type="number" name="cost_impact" value="0" step="0.01">
+        <label>Schedule Impact (days)</label>
+        <input type="number" name="schedule_impact_days" value="0">
+        <label>Priority</label>
+        <select name="priority">
+          <option value="Low">Low</option>
+          <option value="Medium" selected>Medium</option>
+          <option value="High">High</option>
+          <option value="Critical">Critical</option>
+        </select>
+        <div class="form-actions">
+          <button type="button" class="btn-secondary" data-close="modal-co">Cancel</button>
+          <button type="submit" class="btn-primary">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Add Risk -->
+  <div id="modal-risk" class="modal">
+    <div class="modal-content">
+      <h3>Add Risk</h3>
+      <form id="form-risk">
+        <input type="hidden" id="risk-project-id" name="project_id">
+        <label>Title</label>
+        <input type="text" name="title" required>
+        <label>Description</label>
+        <textarea name="description" rows="2"></textarea>
+        <label>Probability (1–5)</label>
+        <input type="number" name="probability" min="1" max="5" value="3" required>
+        <label>Impact (1–5)</label>
+        <input type="number" name="impact" min="1" max="5" value="3" required>
+        <label>Allocated Contingency ($)</label>
+        <input type="number" name="allocated_contingency" value="0" step="0.01">
+        <div class="form-actions" style="margin-top:0.75rem;margin-bottom:0.25rem">
+          <button type="button" class="btn-secondary" id="btn-risk-suggest">AI Suggest Risk Values</button>
+        </div>
+        <div class="form-preview" id="risk-preview"></div>
+        <label>Risk Owner</label>
+        <input type="text" name="risk_owner">
+        <label>Mitigation Plan</label>
+        <textarea name="mitigation_plan" rows="2"></textarea>
+        <div class="form-actions">
+          <button type="button" class="btn-secondary" data-close="modal-risk">Cancel</button>
+          <button type="submit" class="btn-primary">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
