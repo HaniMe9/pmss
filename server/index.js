@@ -3,15 +3,40 @@ import cors from 'cors';
 import Database from 'better-sqlite3';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
+import dotenv from 'dotenv';
 import { runSeed } from '../database/seed.js';
 
+dotenv.config();
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const db = new Database(join(__dirname, '../database/pmss.db'));
+const db = new Database(process.env.DB_PATH || join(__dirname, '../database/pmss.db'));
 
 const app = express();
+
+// --- Basic logging middleware ---
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    const ms = Date.now() - start;
+    console.log(`${req.method} ${req.originalUrl} -> ${res.statusCode} (${ms}ms)`);
+  });
+  next();
+});
+
 app.use(cors());
 app.use(express.json());
 app.use(express.static(join(__dirname, '../public')));
+
+// --- Simple validation helpers ---
+function requireFields(body, fields) {
+  const missing = fields.filter(f => body[f] === undefined || body[f] === null || body[f] === '');
+  return missing;
+}
+
+function validateNumberFields(body, fields) {
+  const invalid = fields.filter(f => body[f] !== undefined && body[f] !== null && body[f] !== '' && Number.isNaN(Number(body[f])));
+  return invalid;
+}
 
 // --- Projects ---
 app.get('/api/projects', (_, res) => {
@@ -34,13 +59,21 @@ app.post('/api/init', (_, res) => {
   }
 });
 
-app.post('/api/projects', (req, res) => {
-  const { name, description, start_date, end_date, currency } = req.body;
-  const result = db.prepare(`
-    INSERT INTO projects (name, description, start_date, end_date, currency)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(name || 'New Project', description || null, start_date || null, end_date || null, currency || 'USD');
-  res.json({ id: result.lastInsertRowid });
+app.post('/api/projects', (req, res, next) => {
+  try {
+    const { name, description, start_date, end_date, currency } = req.body || {};
+    const missing = requireFields({ name: name || 'New Project' }, ['name']);
+    if (missing.length) {
+      return res.status(400).json({ error: 'Missing required fields', fields: missing });
+    }
+    const result = db.prepare(`
+      INSERT INTO projects (name, description, start_date, end_date, currency)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(name || 'New Project', description || null, start_date || null, end_date || null, currency || 'USD');
+    res.json({ id: result.lastInsertRowid });
+  } catch (err) {
+    next(err);
+  }
 });
 
 // --- AI helper endpoints (stubbed for now) ---
@@ -227,22 +260,41 @@ app.get('/api/evm/:projectId', (req, res) => {
   res.json(rows);
 });
 
-app.post('/api/evm', (req, res) => {
-  const { project_id, report_date, bac, pv, ev, ac } = req.body;
-  const sv = ev - pv;
-  const cv = ev - ac;
-  const spi = pv ? ev / pv : null;
-  const cpi = ac ? ev / ac : null;
-  const eac = cpi ? bac / cpi : bac;
-  const etc = eac - ac;
-  const vac = bac - eac;
-  const tcpi = (bac - ac) ? (bac - ev) / (bac - ac) : null;
+app.post('/api/evm', (req, res, next) => {
+  try {
+    const body = req.body || {};
+    const missing = requireFields(body, ['project_id', 'report_date', 'bac']);
+    if (missing.length) {
+      return res.status(400).json({ error: 'Missing required fields', fields: missing });
+    }
+    const numInvalid = validateNumberFields(body, ['bac', 'pv', 'ev', 'ac']);
+    if (numInvalid.length) {
+      return res.status(400).json({ error: 'Invalid numeric fields', fields: numInvalid });
+    }
+    const project_id = Number(body.project_id);
+    const report_date = body.report_date;
+    const bac = Number(body.bac);
+    const pv = Number(body.pv || 0);
+    const ev = Number(body.ev || 0);
+    const ac = Number(body.ac || 0);
 
-  const result = db.prepare(`
-    INSERT INTO evm_data (project_id, report_date, bac, pv, ev, ac, spi, cpi, eac, etc, vac, tcpi)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(project_id, report_date, bac, pv, ev, ac, spi, cpi, eac, etc, vac, tcpi);
-  res.json({ id: result.lastInsertRowid });
+    const sv = ev - pv;
+    const cv = ev - ac;
+    const spi = pv ? ev / pv : null;
+    const cpi = ac ? ev / ac : null;
+    const eac = cpi ? bac / cpi : bac;
+    const etc = eac - ac;
+    const vac = bac - eac;
+    const tcpi = (bac - ac) ? (bac - ev) / (bac - ac) : null;
+
+    const result = db.prepare(`
+      INSERT INTO evm_data (project_id, report_date, bac, pv, ev, ac, spi, cpi, eac, etc, vac, tcpi)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(project_id, report_date, bac, pv, ev, ac, spi, cpi, eac, etc, vac, tcpi);
+    res.json({ id: result.lastInsertRowid });
+  } catch (err) {
+    next(err);
+  }
 });
 
 // --- Change Orders ---
@@ -255,13 +307,35 @@ app.get('/api/change-orders/:projectId', (req, res) => {
   res.json(rows);
 });
 
-app.post('/api/change-orders', (req, res) => {
-  const { project_id, cbs_node_id, co_number, description, status, cost_impact, schedule_impact_days, priority } = req.body;
-  const result = db.prepare(`
-    INSERT INTO change_orders (project_id, cbs_node_id, co_number, description, status, cost_impact, schedule_impact_days, priority)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(project_id, cbs_node_id || null, co_number, description, status || 'Pending', cost_impact || 0, schedule_impact_days || 0, priority || 'Medium');
-  res.json({ id: result.lastInsertRowid });
+app.post('/api/change-orders', (req, res, next) => {
+  try {
+    const body = req.body || {};
+    const missing = requireFields(body, ['project_id', 'co_number', 'description']);
+    if (missing.length) {
+      return res.status(400).json({ error: 'Missing required fields', fields: missing });
+    }
+    const numInvalid = validateNumberFields(body, ['cost_impact', 'schedule_impact_days']);
+    if (numInvalid.length) {
+      return res.status(400).json({ error: 'Invalid numeric fields', fields: numInvalid });
+    }
+    const { project_id, cbs_node_id, co_number, description, status, cost_impact, schedule_impact_days, priority } = body;
+    const result = db.prepare(`
+      INSERT INTO change_orders (project_id, cbs_node_id, co_number, description, status, cost_impact, schedule_impact_days, priority)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      project_id,
+      cbs_node_id || null,
+      co_number,
+      description,
+      status || 'Pending',
+      cost_impact || 0,
+      schedule_impact_days || 0,
+      priority || 'Medium'
+    );
+    res.json({ id: result.lastInsertRowid });
+  } catch (err) {
+    next(err);
+  }
 });
 
 app.patch('/api/change-orders/:id', (req, res) => {
@@ -280,13 +354,35 @@ app.get('/api/risks/:projectId', (req, res) => {
   res.json(rows);
 });
 
-app.post('/api/risks', (req, res) => {
-  const { project_id, title, description, probability, impact, allocated_contingency, risk_owner, mitigation_plan } = req.body;
-  const result = db.prepare(`
-    INSERT INTO risks (project_id, title, description, probability, impact, allocated_contingency, risk_owner, mitigation_plan)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(project_id, title, description || '', probability, impact, allocated_contingency || 0, risk_owner || null, mitigation_plan || null);
-  res.json({ id: result.lastInsertRowid });
+app.post('/api/risks', (req, res, next) => {
+  try {
+    const body = req.body || {};
+    const missing = requireFields(body, ['project_id', 'title', 'probability', 'impact']);
+    if (missing.length) {
+      return res.status(400).json({ error: 'Missing required fields', fields: missing });
+    }
+    const numInvalid = validateNumberFields(body, ['probability', 'impact', 'allocated_contingency']);
+    if (numInvalid.length) {
+      return res.status(400).json({ error: 'Invalid numeric fields', fields: numInvalid });
+    }
+    const { project_id, title, description, probability, impact, allocated_contingency, risk_owner, mitigation_plan } = body;
+    const result = db.prepare(`
+      INSERT INTO risks (project_id, title, description, probability, impact, allocated_contingency, risk_owner, mitigation_plan)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      project_id,
+      title,
+      description || '',
+      probability,
+      impact,
+      allocated_contingency || 0,
+      risk_owner || null,
+      mitigation_plan || null
+    );
+    res.json({ id: result.lastInsertRowid });
+  } catch (err) {
+    next(err);
+  }
 });
 
 // --- Cost Codes ---
@@ -305,13 +401,36 @@ app.get('/api/cost-items/:projectId', (req, res) => {
   res.json(rows);
 });
 
-app.post('/api/cost-items', (req, res) => {
-  const { project_id, cbs_node_id, category, description, budget_hours, budget_rate, budget_amount, actual_hours, actual_amount } = req.body;
-  const result = db.prepare(`
-    INSERT INTO cost_items (project_id, cbs_node_id, category, description, budget_hours, budget_rate, budget_amount, actual_hours, actual_amount)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(project_id, cbs_node_id || null, category, description || '', budget_hours || null, budget_rate || null, budget_amount || null, actual_hours || 0, actual_amount || 0);
-  res.json({ id: result.lastInsertRowid });
+app.post('/api/cost-items', (req, res, next) => {
+  try {
+    const body = req.body || {};
+    const missing = requireFields(body, ['project_id', 'category', 'description']);
+    if (missing.length) {
+      return res.status(400).json({ error: 'Missing required fields', fields: missing });
+    }
+    const numInvalid = validateNumberFields(body, ['budget_hours', 'budget_rate', 'budget_amount', 'actual_hours', 'actual_amount']);
+    if (numInvalid.length) {
+      return res.status(400).json({ error: 'Invalid numeric fields', fields: numInvalid });
+    }
+    const { project_id, cbs_node_id, category, description, budget_hours, budget_rate, budget_amount, actual_hours, actual_amount } = body;
+    const result = db.prepare(`
+      INSERT INTO cost_items (project_id, cbs_node_id, category, description, budget_hours, budget_rate, budget_amount, actual_hours, actual_amount)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      project_id,
+      cbs_node_id || null,
+      category,
+      description || '',
+      budget_hours || null,
+      budget_rate || null,
+      budget_amount || null,
+      actual_hours || 0,
+      actual_amount || 0
+    );
+    res.json({ id: result.lastInsertRowid });
+  } catch (err) {
+    next(err);
+  }
 });
 
 // --- Subcontractors ---
@@ -325,14 +444,27 @@ app.get('/api/subcontractors/:projectId', (req, res) => {
   res.json(rows);
 });
 
-app.post('/api/subcontractors', (req, res) => {
-  const { project_id, vendor_id, cbs_node_id, original_contract, change_orders_total } = req.body;
-  const rev = (original_contract || 0) + (change_orders_total || 0);
-  const result = db.prepare(`
-    INSERT INTO subcontractors (project_id, vendor_id, cbs_node_id, original_contract, change_orders_total, revised_contract)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).run(project_id, vendor_id, cbs_node_id || null, original_contract || 0, change_orders_total || 0, rev);
-  res.json({ id: result.lastInsertRowid });
+app.post('/api/subcontractors', (req, res, next) => {
+  try {
+    const body = req.body || {};
+    const missing = requireFields(body, ['project_id', 'vendor_id', 'original_contract']);
+    if (missing.length) {
+      return res.status(400).json({ error: 'Missing required fields', fields: missing });
+    }
+    const numInvalid = validateNumberFields(body, ['original_contract', 'change_orders_total']);
+    if (numInvalid.length) {
+      return res.status(400).json({ error: 'Invalid numeric fields', fields: numInvalid });
+    }
+    const { project_id, vendor_id, cbs_node_id, original_contract, change_orders_total } = body;
+    const rev = (original_contract || 0) + (change_orders_total || 0);
+    const result = db.prepare(`
+      INSERT INTO subcontractors (project_id, vendor_id, cbs_node_id, original_contract, change_orders_total, revised_contract)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(project_id, vendor_id, cbs_node_id || null, original_contract || 0, change_orders_total || 0, rev);
+    res.json({ id: result.lastInsertRowid });
+  } catch (err) {
+    next(err);
+  }
 });
 
 // --- Vendors & Bids ---
@@ -341,31 +473,66 @@ app.get('/api/vendors', (_, res) => {
   res.json(rows);
 });
 
-app.post('/api/vendors', (req, res) => {
-  const { name, contact_person, email, phone, payment_terms } = req.body;
-  const result = db.prepare(`
-    INSERT INTO vendors (name, contact_person, email, phone, payment_terms)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(name || '', contact_person || null, email || null, phone || null, payment_terms || null);
-  res.json({ id: result.lastInsertRowid });
+app.post('/api/vendors', (req, res, next) => {
+  try {
+    const body = req.body || {};
+    const missing = requireFields(body, ['name']);
+    if (missing.length) {
+      return res.status(400).json({ error: 'Missing required fields', fields: missing });
+    }
+    const { name, contact_person, email, phone, payment_terms } = body;
+    const result = db.prepare(`
+      INSERT INTO vendors (name, contact_person, email, phone, payment_terms)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(name || '', contact_person || null, email || null, phone || null, payment_terms || null);
+    res.json({ id: result.lastInsertRowid });
+  } catch (err) {
+    next(err);
+  }
 });
 
-app.post('/api/procurement', (req, res) => {
-  const { project_id, package_name, description, lead_time_days } = req.body;
-  const result = db.prepare(`
-    INSERT INTO procurement_packages (project_id, package_name, description, lead_time_days)
-    VALUES (?, ?, ?, ?)
-  `).run(project_id, package_name || '', description || null, lead_time_days || null);
-  res.json({ id: result.lastInsertRowid });
+app.post('/api/procurement', (req, res, next) => {
+  try {
+    const body = req.body || {};
+    const missing = requireFields(body, ['project_id', 'package_name']);
+    if (missing.length) {
+      return res.status(400).json({ error: 'Missing required fields', fields: missing });
+    }
+    const numInvalid = validateNumberFields(body, ['lead_time_days']);
+    if (numInvalid.length) {
+      return res.status(400).json({ error: 'Invalid numeric fields', fields: numInvalid });
+    }
+    const { project_id, package_name, description, lead_time_days } = body;
+    const result = db.prepare(`
+      INSERT INTO procurement_packages (project_id, package_name, description, lead_time_days)
+      VALUES (?, ?, ?, ?)
+    `).run(project_id, package_name || '', description || null, lead_time_days || null);
+    res.json({ id: result.lastInsertRowid });
+  } catch (err) {
+    next(err);
+  }
 });
 
-app.post('/api/vendor-bids', (req, res) => {
-  const { package_id, vendor_id, bid_amount, lead_time_days, score } = req.body;
-  const result = db.prepare(`
-    INSERT INTO vendor_bids (package_id, vendor_id, bid_amount, lead_time_days, score)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(package_id, vendor_id, bid_amount, lead_time_days || null, score || null);
-  res.json({ id: result.lastInsertRowid });
+app.post('/api/vendor-bids', (req, res, next) => {
+  try {
+    const body = req.body || {};
+    const missing = requireFields(body, ['package_id', 'vendor_id', 'bid_amount']);
+    if (missing.length) {
+      return res.status(400).json({ error: 'Missing required fields', fields: missing });
+    }
+    const numInvalid = validateNumberFields(body, ['bid_amount', 'lead_time_days', 'score']);
+    if (numInvalid.length) {
+      return res.status(400).json({ error: 'Invalid numeric fields', fields: numInvalid });
+    }
+    const { package_id, vendor_id, bid_amount, lead_time_days, score } = body;
+    const result = db.prepare(`
+      INSERT INTO vendor_bids (package_id, vendor_id, bid_amount, lead_time_days, score)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(package_id, vendor_id, bid_amount, lead_time_days || null, score || null);
+    res.json({ id: result.lastInsertRowid });
+  } catch (err) {
+    next(err);
+  }
 });
 
 app.get('/api/procurement/:projectId', (req, res) => {
@@ -388,23 +555,38 @@ app.get('/api/cash-flow/:projectId', (req, res) => {
   res.json(rows);
 });
 
-app.post('/api/cash-flow', (req, res) => {
-  const { project_id, period_date, planned_spend, actual_spend } = req.body;
-  const existing = db.prepare('SELECT id FROM cash_flow WHERE project_id = ? AND period_date = ?').get(project_id, period_date);
-  if (existing) {
-    db.prepare('UPDATE cash_flow SET planned_spend = ?, actual_spend = ? WHERE id = ?')
-      .run(planned_spend || 0, actual_spend || 0, existing.id);
-    return res.json({ id: existing.id });
+app.post('/api/cash-flow', (req, res, next) => {
+  try {
+    const body = req.body || {};
+    const missing = requireFields(body, ['project_id', 'period_date']);
+    if (missing.length) {
+      return res.status(400).json({ error: 'Missing required fields', fields: missing });
+    }
+    const numInvalid = validateNumberFields(body, ['planned_spend', 'actual_spend']);
+    if (numInvalid.length) {
+      return res.status(400).json({ error: 'Invalid numeric fields', fields: numInvalid });
+    }
+    const { project_id, period_date } = body;
+    const planned_spend = body.planned_spend || 0;
+    const actual_spend = body.actual_spend || 0;
+    const existing = db.prepare('SELECT id FROM cash_flow WHERE project_id = ? AND period_date = ?').get(project_id, period_date);
+    if (existing) {
+      db.prepare('UPDATE cash_flow SET planned_spend = ?, actual_spend = ? WHERE id = ?')
+        .run(planned_spend || 0, actual_spend || 0, existing.id);
+      return res.json({ id: existing.id });
+    }
+    const result = db.prepare(`
+      INSERT INTO cash_flow (project_id, period_date, planned_spend, actual_spend, cumulative_planned, cumulative_actual)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `);
+    const prev = db.prepare('SELECT MAX(cumulative_planned) as cp, MAX(cumulative_actual) as ca FROM cash_flow WHERE project_id = ?').get(project_id);
+    const cumP = (prev?.cp || 0) + (planned_spend || 0);
+    const cumA = (prev?.ca || 0) + (actual_spend || 0);
+    result.run(project_id, period_date, planned_spend || 0, actual_spend || 0, cumP, cumA);
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
   }
-  const result = db.prepare(`
-    INSERT INTO cash_flow (project_id, period_date, planned_spend, actual_spend, cumulative_planned, cumulative_actual)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `);
-  const prev = db.prepare('SELECT MAX(cumulative_planned) as cp, MAX(cumulative_actual) as ca FROM cash_flow WHERE project_id = ?').get(project_id);
-  const cumP = (prev?.cp || 0) + (planned_spend || 0);
-  const cumA = (prev?.ca || 0) + (actual_spend || 0);
-  result.run(project_id, period_date, planned_spend || 0, actual_spend || 0, cumP, cumA);
-  res.json({ ok: true });
 });
 
 // --- Excel/CSV Export (opens in Excel) ---
@@ -449,6 +631,14 @@ app.get('/api/export/:projectId/:module', (req, res) => {
   res.send(csv);
 });
 
+// --- Central error handler ---
+// Must be added after all routes
+app.use((err, req, res, next) => {
+  console.error('Unhandled error:', err);
+  if (res.headersSent) return next(err);
+  res.status(500).json({ error: 'Internal server error' });
+});
+
 const PORT = process.env.PORT || 3000;
 
 function startServer(port) {
@@ -457,7 +647,10 @@ function startServer(port) {
     if (err.code === 'EADDRINUSE') {
       console.log(`Port ${port} in use, trying ${port + 1}...`);
       startServer(port + 1);
-    } else throw err;
+    } else {
+      console.error('Server failed to start:', err);
+      process.exitCode = 1;
+    }
   });
 }
 startServer(PORT);
