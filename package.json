@@ -3,20 +3,19 @@
   "version": "1.0.0",
   "description": "All-in-One Construction Cost Management System",
   "type": "module",
- "scripts": {
-  "server": "node server/index.js",
-  "dev": "node --watch server/index.js",
-  "init-db": "node database/init.js",
-  "start": "react-scripts start",
-  "build": "react-scripts build",
-  "test": "react-scripts test"
-},
+  "scripts": {
+    "server": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "init-db": "node database/init.js",
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test"
+  },
   "dependencies": {
     "better-sqlite3": "^11.6.0",
     "cors": "^2.8.5",
     "dotenv": "^17.3.1",
     "express": "^4.21.1",
-    "react-scripts": "5.0.1"
-
+    "react-scripts": "^5.0.1"
   }
 }
