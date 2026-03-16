@@ -7,7 +7,7 @@
     "server": "node server/index.js",
     "dev": "node --watch server/index.js",
     "init-db": "node database/init.js",
-    "start": "react-scripts start",
+    "start": "node server/index.js",
     "build": "react-scripts build",
     "test": "react-scripts test"
   },
