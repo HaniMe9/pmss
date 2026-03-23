@@ -8,7 +8,7 @@ CREATE TABLE projects (
     description TEXT,
     start_date DATE,
     end_date DATE,
-    currency TEXT DEFAULT 'USD',
+    currency TEXT DEFAULT 'ETB',
     status TEXT DEFAULT 'Active',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP

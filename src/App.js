@@ -1,5 +1,6 @@
 const API = '/api';
 let currentProjectId = null;
+let currentCurrency = 'ETB';
 let useLocalStore = false;
 const LOCAL_KEY = 'pmss-local-data-v1';
 
@@ -64,7 +65,7 @@ async function localApi(path, opts = {}) {
         description: body.description || '',
         start_date: body.start_date || null,
         end_date: body.end_date || null,
-        currency: body.currency || 'USD',
+        currency: body.currency || 'ETB',
       };
       db.projects.push(p);
       saveLocalData(db);
@@ -80,7 +81,7 @@ async function localApi(path, opts = {}) {
       description: 'Demo data for PMSS',
       start_date: '2025-01-01',
       end_date: '2025-12-31',
-      currency: 'USD',
+      currency: 'ETB',
     };
     const data = {
       nextIds: { project: 2, evm: 2, co: 2, risk: 2, cf: 2, ci: 2, sub: 2, vendor: 2, pkg: 2 },
@@ -370,9 +371,19 @@ async function localApi(path, opts = {}) {
 }
 
 const $ = id => document.getElementById(id);
-const fmt = n => n != null && !isNaN(n)
-  ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n)
-  : '—';
+function fmt(n) {
+  if (n == null || isNaN(+n)) return '—';
+  const rounded = Math.round(+n);
+  // Use a simple, consistent Birr label to avoid platform Intl differences.
+  return 'Birr ' + rounded.toLocaleString('en-US');
+}
+
+function setCurrencyFromProjects(projects, projectId) {
+  if (!projects || !projects.length || !projectId) return;
+  const p = projects.find(x => String(x.id) === String(projectId));
+  // Always display as Birr per your request (even if existing DB currency is legacy).
+  currentCurrency = (p && p.currency) ? p.currency : 'ETB';
+}
 
 function toast(msg, type = 'info') {
   const t = document.createElement('div');
@@ -405,9 +416,20 @@ function attachNav() {
     projectSel.addEventListener('change', e => {
       const v = e.target.value;
       currentProjectId = v ? +v : null;
-      const activeNav = document.querySelector('.nav-btn.active');
-      const activeView = activeNav && activeNav.dataset ? activeNav.dataset.view : 'dashboard';
-      loadView(activeView || 'dashboard');
+      // Update currency based on selected project (server or local)
+      const options = Array.from(projectSel.options || []);
+      const selectedId = options.length ? projectSel.value : null;
+      // Re-fetch the projects list (cheap) to keep currency consistent
+      (async () => {
+        try {
+          const projects = await api('/projects');
+          const list = Array.isArray(projects) ? projects : (projects && Array.isArray(projects.projects) ? projects.projects : []);
+          setCurrencyFromProjects(list, selectedId);
+        } catch (_) {
+          // ignore
+        }
+        loadView(document.querySelector('.nav-btn.active') && document.querySelector('.nav-btn.active').dataset ? document.querySelector('.nav-btn.active').dataset.view : 'dashboard');
+      })();
     });
   }
 }
@@ -432,6 +454,7 @@ async function init() {
       currentProjectId = projects.length ? projects[0].id : null;
       if (projects.length) sel.value = String(currentProjectId);
     }
+    setCurrencyFromProjects(projects, currentProjectId);
     updateDashboardEmptyState(projects.length, serverReachable);
   } catch (err) {
     console.warn('Server not reachable, using local storage', err);
@@ -445,6 +468,7 @@ async function init() {
       currentProjectId = projects.length ? projects[0].id : null;
       if (projects.length) sel.value = String(currentProjectId);
     }
+    setCurrencyFromProjects(projects, currentProjectId);
     updateDashboardEmptyState(projects.length, false);
   }
   loadView('dashboard');
@@ -494,6 +518,7 @@ async function refreshProjects() {
       sel.value = String(currentProjectId);
     }
   }
+  setCurrencyFromProjects(list, currentProjectId);
   updateDashboardEmptyState(list.length, true);
   return list;
 }
@@ -556,10 +581,11 @@ async function loadDashboard() {
     const d = await api('/dashboard/' + currentProjectId);
     const b = d && d.budget ? d.budget : {};
     const pct = (d && typeof d.pctComplete === 'number') ? d.pctComplete : 0;
+    const pctText = (Math.round(pct * 10) / 10).toString();
     $('dash-budget').textContent = fmt(typeof b.total === 'number' ? b.total : 0);
     $('dash-actual').textContent = fmt(typeof b.actual === 'number' ? b.actual : 0);
     $('dash-eac').textContent = fmt(typeof b.eac === 'number' ? b.eac : 0);
-    $('dash-pct').textContent = (pct + '%');
+    $('dash-pct').textContent = (pctText + '%');
     const evm = d.evm || {};
     $('dash-cpi').textContent = evm.cpi != null ? evm.cpi.toFixed(2) : '—';
     $('dash-spi').textContent = evm.spi != null ? evm.spi.toFixed(2) : '—';
@@ -878,7 +904,7 @@ function setupModals() {
     e.preventDefault();
     try {
       const fd = new FormData(e.target);
-      await api('/projects', { method: 'POST', body: JSON.stringify({ name: fd.get('name') || 'New Project', description: fd.get('description'), start_date: fd.get('start_date') || null, end_date: fd.get('end_date') || null, currency: fd.get('currency') || 'USD' }) });
+      await api('/projects', { method: 'POST', body: JSON.stringify({ name: fd.get('name') || 'New Project', description: fd.get('description'), start_date: fd.get('start_date') || null, end_date: fd.get('end_date') || null, currency: fd.get('currency') || 'ETB' }) });
       closeModal('modal-project');
       e.target.reset();
       const projects = await refreshProjects();
@@ -892,6 +918,33 @@ function setupModals() {
       toast('Failed to create project', 'danger');
     }
   });
+
+  // Help dropdown (User Manual / About)
+  const helpBtn = $('btn-help');
+  const helpMenu = $('help-menu');
+  if (helpBtn && helpMenu) {
+    helpBtn.addEventListener('click', () => {
+      const open = helpBtn.closest('.dropdown');
+      if (open) open.classList.toggle('open');
+    });
+
+    document.addEventListener('click', e => {
+      const open = document.querySelector('.dropdown.open');
+      if (!open) return;
+      if (open.contains(e.target)) return;
+      open.classList.remove('open');
+    });
+
+    helpMenu.addEventListener('click', async e => {
+      const btn = e.target.closest('button[data-help]');
+      if (!btn) return;
+      const docKey = btn.dataset.help;
+      openModal('modal-help');
+      await loadHelpDoc(docKey);
+      const openDrop = document.querySelector('.dropdown.open');
+      if (openDrop) openDrop.classList.remove('open');
+    });
+  }
 
   if ($('btn-add-co')) $('btn-add-co').addEventListener('click', () => {
     if (!needProject()) return;
@@ -1263,6 +1316,100 @@ function setupModals() {
       }
     });
   }
+}
+
+async function loadHelpDoc(docKey) {
+  const title = $('help-title');
+  const content = $('help-content');
+  if (!content) return;
+
+  if (docKey === 'user-manual') {
+    if (title) title.textContent = 'User Manual';
+    content.textContent = 'Loading...';
+    await fetchAndRenderMarkdown('/docs/USER_MANUAL.md', content);
+  } else if (docKey === 'about') {
+    if (title) title.textContent = 'About';
+    content.textContent = 'Loading...';
+    await fetchAndRenderMarkdown('/docs/ABOUT.md', content);
+  }
+}
+
+async function fetchAndRenderMarkdown(url, container) {
+  try {
+    const res = await fetch(url, { cache: 'no-store' });
+    if (!res.ok) {
+      throw new Error(`Request failed (${res.status} ${res.statusText})`);
+    }
+    const md = await res.text();
+    container.innerHTML = renderMarkdown(md);
+  } catch (err) {
+    container.innerHTML = `
+      <p class="text-danger">Unable to load document: ${escapeHtml(err.message)}</p>
+      <p>If you're running the app via <code>file://</code>, the built-in docs will not load. Run the server using <code>npm start</code> and open <code>http://localhost:3000</code>.</p>
+      <p><a href="${escapeHtml(url)}" target="_blank" rel="noopener">Open in new tab</a></p>
+    `;
+  }
+}
+
+function escapeHtml(str) {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function renderMarkdown(md) {
+  const lines = md.split('\n');
+  let html = '';
+  let inList = false;
+
+  const flushList = () => {
+    if (inList) {
+      html += '</ul>';
+      inList = false;
+    }
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+    if (!trimmed) {
+      flushList();
+      html += '<p></p>';
+      continue;
+    }
+
+    const headerMatch = trimmed.match(/^(#{1,6})\s+(.*)$/);
+    if (headerMatch) {
+      flushList();
+      const level = Math.min(headerMatch[1].length, 3);
+      html += `<h${level}>${escapeHtml(headerMatch[2])}</h${level}>`;
+      continue;
+    }
+
+    if (trimmed.startsWith('- ')) {
+      if (!inList) {
+        inList = true;
+        html += '<ul>';
+      }
+      html += `<li>${escapeHtml(trimmed.slice(2))}</li>`;
+      continue;
+    }
+
+    if (trimmed.startsWith('```')) {
+      flushList();
+      i += 1;
+      const codeLines = [];
+      while (i < lines.length && !lines[i].startsWith('```')) {
+        codeLines.push(lines[i]);
+        i += 1;
+      }
+      html += `<pre>${escapeHtml(codeLines.join('\n'))}</pre>`;
+      continue;
+    }
+
+    html += `<p>${escapeHtml(trimmed)}</p>`;
+  }
+
+  flushList();
+  return html;
 }
 
 // Run when DOM is ready (script is at end of body, but handle async/defer)

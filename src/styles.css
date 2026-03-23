@@ -1,4 +1,18 @@
 /* PMSS - Construction Cost Management System */
+
+:root {
+  --bg: #0f1419;
+  --bg-card: #1a2332;
+  --bg-input: #242f3f;
+  --border: #2d3a4d;
+  --text: #e6edf3;
+  --text-muted: #8b9eb3;
+  --accent: #f59e0b;
+  --accent-dim: #b45309;
+  --success: #22c55e;
+  --danger: #ef4444;
+  --warning: #f59e0b;
+}
 :root {
   --bg: #0f1419;
   --bg-card: #1a2332;
@@ -31,6 +45,8 @@ body {
   background: var(--bg);
   color: var(--text);
   min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
 .header {
@@ -77,15 +93,80 @@ body {
   gap: 0.75rem;
 }
 
-.project-select {
-  padding: 0.5rem 1rem;
-  background: var(--bg-input);
+.dropdown {
+  position: relative;
+  display: inline-block;
+}
+
+.dropdown-menu {
+  display: none;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.25rem);
+  background: var(--bg-card);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 10px;
+  padding: 0.5rem 0;
+  min-width: 180px;
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.35);
+  z-index: 500;
+}
+
+.dropdown-menu button {
+  width: 100%;
+  padding: 0.5rem 1rem;
+  background: transparent;
+  border: none;
+  text-align: left;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.dropdown-menu button:hover {
+  background: var(--bg-input);
+}
+
+.dropdown.open .dropdown-menu {
+  display: block;
+}
+
+.help-content {
+  max-height: 60vh;
+  overflow: auto;
+  padding: 0.5rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
   color: var(--text);
 }
 
-.main { padding: 1.5rem; max-width: 1400px; margin: 0 auto; }
+.help-content pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: ui-monospace, Menlo, Monaco, Consolas, 'Courier New', monospace;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 0.75rem;
+  border-radius: 8px;
+  overflow: auto;
+}
+
+.help-content h1, .help-content h2, .help-content h3 {
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.help-content p {
+  margin: 0.5rem 0;
+}
+
+.help-content ul {
+  margin: 0.5rem 0 0.5rem 1.25rem;
+}
+  color: var(--text);
+}
+
+.main { padding: 1.5rem; padding-bottom: 7rem; max-width: 1400px; margin: 0 auto; flex: 1 0 auto; }
 
 .view { display: none; }
 .view.active { display: block; }
@@ -131,6 +212,27 @@ body {
   margin-bottom: 1.5rem;
 }
 
+.dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* Footer */
+.footer {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 1rem 1.5rem;
+  text-align: center;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border);
+  background: var(--bg-card);
+  z-index: 10;
+}
+
 .kpi-card {
   background: var(--bg-card);
   border: 1px solid var(--border);
@@ -139,7 +241,13 @@ body {
 }
 
 .kpi-label { font-size: 0.8rem; color: var(--text-muted); display: block; }
-.kpi-value { font-size: 1.5rem; font-weight: 700; }
+.kpi-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 .dashboard-empty {
   display: flex;
@@ -175,14 +283,57 @@ body {
   gap: 1rem;
 }
 
+/* Match screenshot arrangement on desktop */
+@media (min-width: 1100px) {
+  .kpi-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+  .dashboard-charts {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  /* Keep everything side-by-side; allow horizontal scroll */
+  .kpi-grid {
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(160px, 1fr);
+    grid-template-columns: none;
+    overflow-x: auto;
+    padding-bottom: 0.25rem;
+    scroll-snap-type: x mandatory;
+  }
+  .kpi-card {
+    scroll-snap-align: start;
+  }
+  .dashboard-charts {
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(320px, 1fr);
+    grid-template-columns: none;
+    overflow-x: auto;
+    padding-bottom: 0.25rem;
+    scroll-snap-type: x mandatory;
+  }
+  .chart-card {
+    scroll-snap-align: start;
+  }
+}
+
 .chart-card {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 1rem;
+  min-width: 0;
 }
 
-.chart-card h3 { margin: 0 0 1rem; font-size: 0.95rem; }
+.chart-card h3 {
+  margin: 0 0 1rem;
+  font-size: 0.95rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 .chart-placeholder {
   height: 180px;

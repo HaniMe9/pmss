@@ -54,7 +54,7 @@ insProject.run(
   '24-story mixed-use development',
   '2025-01-01',
   '2026-12-31',
-  'USD'
+  'ETB'
 );
 
 // Seed CBS structure

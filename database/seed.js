@@ -34,7 +34,7 @@ export function runSeed(db) {
   costCodes.forEach(c => insCode.run(c.code, c.name, c.category));
 
   db.prepare(`INSERT INTO projects (name, description, start_date, end_date, currency) VALUES (?, ?, ?, ?, ?)`)
-    .run('Sample Commercial Tower', '24-story mixed-use development', '2025-01-01', '2026-12-31', 'USD');
+    .run('Sample Commercial Tower', '24-story mixed-use development', '2025-01-01', '2026-12-31', 'ETB');
 
   const projectId = 1;
   const cbsNodes = [

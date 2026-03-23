@@ -26,6 +26,9 @@ app.use((req, res, next) => {
 app.use(cors());
 app.use(express.json());
 app.use(express.static(join(__dirname, '../public')));
+app.use('/docs', express.static(join(__dirname, '../docs')));
+// Allow the frontend HTML in /public to reference /src/App.js and /src/styles.css
+app.use('/src', express.static(join(__dirname, '../src')));
 
 // --- Simple validation helpers ---
 function requireFields(body, fields) {
@@ -69,7 +72,7 @@ app.post('/api/projects', (req, res, next) => {
     const result = db.prepare(`
       INSERT INTO projects (name, description, start_date, end_date, currency)
       VALUES (?, ?, ?, ?, ?)
-    `).run(name || 'New Project', description || null, start_date || null, end_date || null, currency || 'USD');
+    `).run(name || 'New Project', description || null, start_date || null, end_date || null, currency || 'ETB');
     res.json({ id: result.lastInsertRowid });
   } catch (err) {
     next(err);
@@ -112,12 +115,13 @@ app.post('/api/ask', (req, res) => {
   // Simple rule-based explanation as a placeholder for a real LLM call
   const cpi = evm?.cpi;
   const spi = evm?.spi;
+  const fmtMoney = v => (v == null || isNaN(Number(v))) ? '0' : Number(v).toLocaleString('en-US');
   let answer = 'AI summary based on current data:\n';
-  answer += `Total budget is ${summary.total_budget}, actual spend is ${summary.actual_spend}.\n`;
+  answer += `Total budget is Birr ${fmtMoney(summary.total_budget)}, actual spend is Birr ${fmtMoney(summary.actual_spend)}.\n`;
   if (cpi != null) answer += `Cost performance index (CPI) is ${cpi.toFixed(2)}.\n`;
   if (spi != null) answer += `Schedule performance index (SPI) is ${spi.toFixed(2)}.\n`;
   if ((summary.change_orders.approved_impact || 0) > 0 || (summary.change_orders.pending_impact || 0) > 0) {
-    answer += `Approved change orders add ${(summary.change_orders.approved_impact || 0)} and pending add ${(summary.change_orders.pending_impact || 0)} to the contract value.\n`;
+    answer += `Approved change orders add Birr ${fmtMoney(summary.change_orders.approved_impact || 0)} and pending add Birr ${fmtMoney(summary.change_orders.pending_impact || 0)} to the contract value.\n`;
   }
   answer += 'You can refine this explanation by integrating a real LLM API.';
   res.json({ answer, summary });
@@ -167,13 +171,14 @@ app.get('/api/report/:projectId', (req, res) => {
   const cpi = evm?.cpi;
   const spi = evm?.spi;
   const eac = evm?.eac;
+  const fmtMoney = v => (v == null || isNaN(Number(v))) ? '0' : Number(v).toLocaleString('en-US');
   let text = 'Executive summary for project ' + pid + ':\n\n';
-  text += `Planned budget: ${dash?.total_budget || 0}, actual spend to date: ${dash?.actual_spend || 0}.\n`;
-  if (eac != null) text += `Current estimate at completion (EAC) is ${eac}.\n`;
+  text += `Planned budget: Birr ${fmtMoney(dash?.total_budget || 0)}, actual spend to date: Birr ${fmtMoney(dash?.actual_spend || 0)}.\n`;
+  if (eac != null) text += `Current estimate at completion (EAC) is Birr ${fmtMoney(eac)}.\n`;
   if (cpi != null) text += `CPI is ${cpi.toFixed(2)} (values below 1.00 indicate cost overrun).\n`;
   if (spi != null) text += `SPI is ${spi.toFixed(2)} (values below 1.00 indicate schedule delay).\n`;
   if (coStats) {
-    text += `Approved change orders total ${coStats.approved_impact || 0}, pending total ${coStats.pending_impact || 0}.\n`;
+    text += `Approved change orders total Birr ${fmtMoney(coStats.approved_impact || 0)}, pending total Birr ${fmtMoney(coStats.pending_impact || 0)}.\n`;
   }
   res.json({ summary: text });
 });
@@ -639,18 +644,25 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
-const PORT = process.env.PORT || 3000;
+// Ensure numeric port. process.env.PORT is a string, and "port + 1" becomes string concatenation.
+const PORT = Number.parseInt(process.env.PORT, 10);
+const SERVER_PORT = Number.isFinite(PORT) ? PORT : 3000;
 
-function startServer(port) {
+function startServer(port, attempt = 0) {
+  if (attempt > 20) {
+    console.error('Unable to find a free port after many attempts.');
+    process.exitCode = 1;
+    return;
+  }
   const server = app.listen(port, () => console.log(`PMSS API running at http://localhost:${port}`));
   server.on('error', err => {
     if (err.code === 'EADDRINUSE') {
       console.log(`Port ${port} in use, trying ${port + 1}...`);
-      startServer(port + 1);
+      startServer(port + 1, attempt + 1);
     } else {
       console.error('Server failed to start:', err);
       process.exitCode = 1;
     }
   });
 }
-startServer(PORT);
+startServer(SERVER_PORT);

@@ -17,6 +17,8 @@ npm start
 
 Open **http://localhost:3000** in your browser.
 
+> **Tip:** Use the **Help** dropdown in the top-right to access the **User Manual** and **About** docs directly in the app.
+
 > **Important:** Use the full URL. Do not open the HTML file directly (file://) — the API won't work.
 
 > **Empty dashboard?** Click **"Load Sample Data"** to populate a sample project with CBS, EVM, change orders, and more.
@@ -82,4 +84,4 @@ pmss/
 - `POST /api/vendor-bids` — Add vendor bid
 - `GET /api/cash-flow/:id` — Cash flow
 - `GET /api/export/:id/:module` — CSV export (cbs, evm, change-orders, risks, cash-flow, cost-items, subcontractors)
-- 
+  
