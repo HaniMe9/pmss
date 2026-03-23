@@ -7,7 +7,8 @@
     "server": "node server/index.js",
     "dev": "node --watch server/index.js",
     "init-db": "node database/init.js",
-    "start": "node server/index.js"
+    "start": "node server/index.js",
+    "build": "echo 'No build step required; this is static JS/CSS served directly'"
   },
   "dependencies": {
     "better-sqlite3": "^11.6.0",
