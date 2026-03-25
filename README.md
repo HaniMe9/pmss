@@ -54,18 +54,22 @@ Each module has an **Export** button. Downloaded CSV files open in Excel.
 
 ```
 pmss/
-├── database/
-│   ├── schema.sql    # Database schema
-│   ├── init.js       # Setup + sample data
-│   └── pmss.db       # SQLite DB (after init)
-├── server/
-│   └── index.js      # API + static files
-├── public/
-│   ├── index.html
-│   ├── styles.css
-│   └── app.js
-└── docs/
-    └── ARCHITECTURE.md
+├─ public/
+│  └─ index.html
+├─ src/
+│  ├─ App.js
+│  ├─ index.js
+│  └─ styles.css
+├─ server/
+│  └─ index.js
+├─ database/
+│  ├─ init.js
+│  ├─ seed.js
+│  ├─ schema.sql
+│  └─ pmss.db
+├─ docs/
+├─ package.json
+└─ ...
 ```
 
 ## API Endpoints
@@ -84,4 +88,8 @@ pmss/
 - `POST /api/vendor-bids` — Add vendor bid
 - `GET /api/cash-flow/:id` — Cash flow
 - `GET /api/export/:id/:module` — CSV export (cbs, evm, change-orders, risks, cash-flow, cost-items, subcontractors)
+<img width="1517" height="813" alt="image" src="https://github.com/user-attachments/assets/85cdd63b-2afc-44d3-811b-cc05529c267b" />
+<img width="1918" height="662" alt="image" src="https://github.com/user-attachments/assets/8611a4c7-d77f-425f-8a51-2d81c91897a5" />
+
+
   
